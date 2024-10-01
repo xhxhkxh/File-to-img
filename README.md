@@ -13,9 +13,9 @@ And the decoder do the reverse.
 
 Here's an example image of the program: 
 ![Example image](https://github.com/xhxhkxh/File-to-img/blob/main/example/res.png?raw=true) 
-The example image 
-In the example image, you could see the colorful strips in the lest, it's the head of the file. 
-And the black area in the middel, it's the reserved space for our 500b head section. 
-The biggese colorful area is the size of the image, is the original data of the encoded file. 
-the last black area is the reserved space for ... nothing. 
+The example image <br>
+In the example image, you could see the colorful strips in the lest, it's the head of the file. <br>
+And the black area in the middel, it's the reserved space for our 500b head section. <br>
+The biggese colorful area is the size of the image, is the original data of the encoded file. <br>
+the last black area is the reserved space for ... nothing. <br>
 
