@@ -15,7 +15,7 @@ Here's an example image of the program:
 ![Example image](https://github.com/xhxhkxh/File-to-img/blob/main/example/res.png?raw=true) <br>
 
 I would place a resized image below, however, after resizing, the decoder won't work on this image,you would receive error message of missing head sequence.
-![Example image-resize]([https://github.com/xhxhkxh/File-to-img/blob/main/example/res-big.png?raw=true](https://github.com/xhxhkxh/File-to-img/blob/main/example/res-big.png?raw=true)
+![Example image-resize](https://github.com/xhxhkxh/File-to-img/blob/main/example/res-big.png?raw=true)
 
 ------
 
