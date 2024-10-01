@@ -20,7 +20,7 @@ I would place a resized image below, however, after resizing, the decoder won't 
 ------
 
 In the example image, you could see the colorful strips in the left, it's the head of the file. <br>
-And the black area in the middel, it's the reserved space for our 500b head section. <br>
+And the black area in the middle, it's the reserved space for our 500b head section. <br>
 The biggese colorful area is the size of the image, is the original data of the encoded file. <br>
 the last black area is the reserved space for ... nothing. <br>
 
