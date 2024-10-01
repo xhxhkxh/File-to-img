@@ -13,8 +13,13 @@ And the decoder do the reverse.
 
 Here's an example image of the program: 
 ![Example image](https://github.com/xhxhkxh/File-to-img/blob/main/example/res.png?raw=true) <br>
-The example image <br>
-In the example image, you could see the colorful strips in the lest, it's the head of the file. <br>
+
+I would place a resized image below, however, after resizing, the decoder won't work on this image,you would receive error message of missing head sequence.
+![Example image-resize](https://github.com/xhxhkxh/File-to-img/blob/main/example/res-big.png?raw=true
+
+------
+
+In the example image, you could see the colorful strips in the left, it's the head of the file. <br>
 And the black area in the middel, it's the reserved space for our 500b head section. <br>
 The biggese colorful area is the size of the image, is the original data of the encoded file. <br>
 the last black area is the reserved space for ... nothing. <br>
