@@ -12,7 +12,7 @@ And the decoder do the reverse.
 ## To decode the image, you need to place the image in the same dictionary with the decoder and rename the image as "res.png"
 
 Here's an example image of the program: 
-![Example image](https://github.com/xhxhkxh/File-to-img/blob/main/example/res.png?raw=true) 
+![Example image](https://github.com/xhxhkxh/File-to-img/blob/main/example/res.png?raw=true) <br>
 The example image <br>
 In the example image, you could see the colorful strips in the lest, it's the head of the file. <br>
 And the black area in the middel, it's the reserved space for our 500b head section. <br>
