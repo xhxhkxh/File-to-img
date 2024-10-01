@@ -15,7 +15,7 @@ for i in data:
     for j in i:
         data_unzip.append(j.to_bytes())
 
-print(data_unzip[:300])
+# print(data_unzip[:300])
 header = ''
 print("Reading file header...")
 for x in data_unzip[:500]:
@@ -23,7 +23,7 @@ for x in data_unzip[:500]:
         header += x.decode('utf-8')
     except:
         header += 'e'
-print(header)
+# print(header)
 
 custom_fn_begin = "Filename_beg:"
 custom_fn_end = "Filename_end"
@@ -48,7 +48,7 @@ def b2mb(b):
 print(f"Readed {len(datas)} bytes, {b2mb(len(datas))} mb")
 print(f"It should be {file_size}, plese check.")
 
-print(datas[:30])
+# print(datas[:30])
 
 with open(f"{file_name}", 'wb') as file:
     for i in datas:
