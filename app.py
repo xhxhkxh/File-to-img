@@ -26,7 +26,7 @@ def sep(obj):
 
 
 def encode(fnp):
-    fn = input("File name and it's path:")
+    fn = fnp
 
     with open(fn, 'rb') as file:
         data = file.read()
