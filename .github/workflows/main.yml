@@ -40,14 +40,29 @@ jobs:
     # 5 - modify pubspec.yaml 
     - name: Add dependency overrides
       run: |
-        # backup original pubspec.yaml
-        cp pubspec.yaml pubspec.yaml.backup
-        
-        # override to pubspec.yaml
-        echo "" >> pubspec.yaml
-        echo "dependency_overrides:" >> pubspec.yaml
-        echo "  webview_flutter_android: 4.8.2" >> pubspec.yaml
-        echo "  webview_flutter: 4.4.2" >> pubspec.yaml
+        # does pubspec.yaml exists?
+        if [ -f "pubspec.yaml" ]; then
+          echo "pubspec.yaml found in current directory"
+        else
+          echo "Searching for pubspec.yaml..."
+          find . -name "pubspec.yaml" -type f
+        fi
+
+        # use current pubspec.yaml
+        if [ -f "pubspec.yaml" ]; then
+          # backup pubspec.yaml
+          cp pubspec.yaml pubspec.yaml.backup
+          
+          
+          echo "" >> pubspec.yaml
+          echo "dependency_overrides:" >> pubspec.yaml
+          echo "  webview_flutter_android: 4.8.2" >> pubspec.yaml
+          echo "  webview_flutter: 4.4.2" >> pubspec.yaml
+          echo "Dependency overrides added successfully"
+        else
+          echo "Error: pubspec.yaml not found in current directory"
+          exit 1
+        fi
 
     # 6 - Clean and fetch dependencies
     - name: Clean and get dependencies
