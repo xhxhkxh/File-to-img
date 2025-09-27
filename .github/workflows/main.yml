@@ -1,0 +1,71 @@
+name: Build APK action
+
+on:
+  push:
+    branches: [ flet ]
+    paths-ignore:
+      - '*.md'
+      - '.gitignore'
+  workflow_dispatch: 
+    
+env:
+  FLUTTER_VERSION: 3.29.2
+  PYTHON_VERSION: 3.12.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    # 1- fetch the code
+    - uses: actions/checkout@v4
+
+    # 2 - install python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+      
+    # 3 - install flutter
+    - name: Install Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        cache: true
+    
+    # 4 - install the flet
+    - name: Install CLI
+      run: python -m pip install flet
+
+    # 5 - build flet build
+    #- name: Restore Pub cache
+    #  run: flutter pub get
+    
+    # 6 - compile APK
+
+    - name: Build APK
+      run: flet build apk --verbose
+
+    #7 - Generate name
+    - name: Generate name
+      id: version
+      run: echo "tag=v$(date +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+
+    # 8 - Create release
+    - name: Create release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ steps.version.outputs.tag }}
+        name: Android APK Release ${{ steps.version.outputs.tag }}
+        body: |
+          Auto-generated release from commit sha ${{ github.sha }} by GitHub Actions.
+          Compile time: ${{ github.event.head_commit.timestamp }}.
+
+        artifacts: build/app/outputs/flutter-apk/app-release.apk
+        artifactContentType: application/vnd.android.package-archive
+        makeLatest: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+
+
+
