@@ -31,8 +31,7 @@ jobs:
       uses: subosito/flutter-action@v2
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
-        cache: true
-    - run: flutter clean
+        cache: false
     
     # 4 - install the flet
     - name: Install CLI
@@ -45,7 +44,7 @@ jobs:
     # 6 - compile APK
 
     - name: Build APK
-      run: flet build apk --verbose
+      run: flet build apk
 
     #7 - Generate name
     - name: Generate name
