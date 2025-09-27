@@ -39,7 +39,7 @@ jobs:
 
     # 5. Build APK
     - name: Build APK
-      run: flet build apk --no-pub
+      run: flet build apk
 
     # 6. Generate tag
     - name: Generate tag
