@@ -44,7 +44,7 @@ jobs:
     # 6 - compile APK
 
     - name: Build APK
-      run: flet build apk --verbose
+      run: flet build apk
 
     #7 - Generate name
     - name: Generate name
