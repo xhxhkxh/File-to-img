@@ -1,4 +1,4 @@
-name: Build APK action
+name: Build APK (Flutter 3.24.5)
 
 on:
   push:
@@ -6,10 +6,10 @@ on:
     paths-ignore:
       - '*.md'
       - '.gitignore'
-  workflow_dispatch: 
-    
+  workflow_dispatch:
+
 env:
-  FLUTTER_VERSION: 3.29.2
+  FLUTTER_VERSION: 3.24.5
   PYTHON_VERSION: 3.12.1
 
 jobs:
@@ -18,77 +18,43 @@ jobs:
     permissions:
       contents: write
     steps:
-    # 1- fetch the code
+    # 1. Fetch code
     - uses: actions/checkout@v4
 
-    # 2 - install python
+    # 2. Install Python
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-      
-    # 3 - install flutter
+
+    # 3. Install Flutter（Version 3.24.5）
     - name: Install Flutter
       uses: subosito/flutter-action@v2
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
-        cache: false
-    
-    # 4 - install the flet
-    - name: Install CLI
+        cache: true          
+
+    # 4. Install Flet-CLI
+    - name: Install Flet
       run: python -m pip install flet
 
-    # 5 - modify pubspec.yaml 
-    - name: Add dependency overrides
-      run: |
-        # does pubspec.yaml exists?
-        if [ -f "pubspec.yaml" ]; then
-          echo "pubspec.yaml found in current directory"
-        else
-          echo "Searching for pubspec.yaml..."
-          find . -name "pubspec.yaml" -type f
-        fi
+    # 5. Build APK
+    - name: Build APK
+      run: flet build apk --no-pub
 
-        # use current pubspec.yaml
-        if [ -f "pubspec.yaml" ]; then
-          # backup pubspec.yaml
-          cp pubspec.yaml pubspec.yaml.backup
-          
-          
-          echo "" >> pubspec.yaml
-          echo "dependency_overrides:" >> pubspec.yaml
-          echo "  webview_flutter_android: 4.8.2" >> pubspec.yaml
-          echo "  webview_flutter: 4.4.2" >> pubspec.yaml
-          echo "Dependency overrides added successfully"
-        else
-          echo "Error: pubspec.yaml not found in current directory"
-          exit 1
-        fi
-
-    # 6 - Clean and fetch dependencies
-    - name: Clean and get dependencies
-      run: |
-        flutter clean
-        flutter pub get
-
-    # 7 - buold APK
-    - name: Build APK with Flet
-      run: flet build apk --release
-
-    # 8 - Generate name
-    - name: Generate name
+    # 6. Generate tag
+    - name: Generate tag
       id: version
       run: echo "tag=v$(date +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
 
-    # 9 - Create release
+    # 7.  Release
     - name: Create release
       uses: ncipollo/release-action@v1
       with:
         tag: ${{ steps.version.outputs.tag }}
         name: Android APK Release ${{ steps.version.outputs.tag }}
         body: |
-          Auto-generated release from commit sha ${{ github.sha }} by GitHub Actions.
-          Compile time: ${{ github.event.head_commit.timestamp }}.
-
+          Auto-generated from commit ${{ github.sha }}.
+          Flutter ${{ env.FLUTTER_VERSION }} / Dart 3.9
         artifacts: build/app/outputs/flutter-apk/app-release.apk
         artifactContentType: application/vnd.android.package-archive
         makeLatest: true
