@@ -44,7 +44,20 @@ jobs:
     # 6 - compile APK
 
     - name: Build APK
-      run: flet build apk
+      run: flet build apk --no-pub
+
+    - name: Pin webview to Dart-3.7-compatible
+      working-directory: .android
+      run: |
+        echo "" >> pubspec.yaml
+        echo "dependency_overrides:" >> pubspec.yaml
+        echo "  webview_flutter_android: '4.8.0'" >> pubspec.yaml
+
+    - run: flutter pub get
+      working-directory: .android
+
+    - run: flutter build apk --release
+      working-directory: .android
 
     #7 - Generate name
     - name: Generate name
