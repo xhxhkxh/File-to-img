@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - '*.md'
       - '.gitignore'
+  workflow_dispatch: 
     
 env:
   FLUTTER_VERSION: 3.29.2
