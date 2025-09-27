@@ -44,7 +44,7 @@ jobs:
     # 6 - compile APK
 
     - name: Build APK
-      run: flutter build apk --release
+      run: flet build apk --verbose
 
     #7 - Generate name
     - name: Generate name
