@@ -32,6 +32,7 @@ jobs:
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         cache: true
+    - run: flutter clean
     
     # 4 - install the flet
     - name: Install CLI
