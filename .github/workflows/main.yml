@@ -40,7 +40,7 @@ jobs:
     
     # 4. Install Flet-CLI
     - name: Install Flet
-      run: python -m pip install flet==0.24.0
+      run: python -m pip install flet
 
     # 5. Build APK
     - name: Build APK
