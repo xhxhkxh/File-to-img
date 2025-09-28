@@ -9,7 +9,7 @@ on:
   workflow_dispatch: 
     
 env:
-  FLUTTER_VERSION: 3.29.2
+  
   PYTHON_VERSION: 3.12.1
 
 jobs:
@@ -26,12 +26,7 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
       
-    # 3 - install flutter
-    - name: Install Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-        cache: true
+    # 3 - none
     
     # 4 - install the flet
     - name: Install CLI
