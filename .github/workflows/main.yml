@@ -1,4 +1,4 @@
-name: Build APK (Flutter 3.24.5)
+name: Build APK (Flutter 3.35.1)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  # FLUTTER_VERSION: 3.24.5
+  FLUTTER_VERSION: 3.35.1
   PYTHON_VERSION: 3.12.1
   PYTHONIOENCODING: utf-8 
 
@@ -31,7 +31,7 @@ jobs:
     - name: Install Flutter
       uses: subosito/flutter-action@v2
       with:
-        # flutter-version: ${{ env.FLUTTER_VERSION }}
+        flutter-version: ${{ env.FLUTTER_VERSION }}
         cache: true          
 
     #3.5 JPEG lib 
