@@ -11,6 +11,7 @@ on:
 env:
   FLUTTER_VERSION: 3.24.5
   PYTHON_VERSION: 3.12.1
+  PYTHONIOENCODING: utf-8 
 
 jobs:
   build:
@@ -37,6 +38,9 @@ jobs:
     #- name: Install JPEG libs 
     #  run: sudo apt update && sudo apt install libjpeg-dev zlib1g-dev libpng-dev libfreetype6-dev liblcms2-dev libopenjp2-7-dev libtiff5-dev libwebp-dev
 
+    # chcp for rich lib
+    - name: change page 
+      run: chcp 65001
     
     # 4. Install Flet-CLI
     - name: Install Flet
