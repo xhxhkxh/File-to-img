@@ -33,6 +33,11 @@ jobs:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         cache: true          
 
+    #3.5 JPEG lib 
+    - name: Install JPEG libs 
+      run: sudo apt update && sudo apt install libjpeg-dev zlib1g-dev libpng-dev libfreetype6-dev liblcms2-dev libopenjp2-7-dev libtiff5-dev libwebp-dev
+
+    
     # 4. Install Flet-CLI
     - name: Install Flet
       run: python -m pip install flet==0.24.0
