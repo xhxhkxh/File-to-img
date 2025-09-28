@@ -1,2 +1,3 @@
-flet==0.24.0
+flet
 Pillow==10.4.0
+
