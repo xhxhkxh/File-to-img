@@ -27,11 +27,11 @@ jobs:
         python-version: ${{ env.PYTHON_VERSION }}
 
     # 3. Install Flutter（Version 3.24.5）
-    #- name: Install Flutter
-    #  uses: subosito/flutter-action@v2
-    #  with:
-    #    flutter-version: ${{ env.FLUTTER_VERSION }}
-     #   cache: true          
+    - name: Install Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        cache: true          
 
     # 4. Install Flet-CLI
     - name: Install Flet
