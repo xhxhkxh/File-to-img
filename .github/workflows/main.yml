@@ -55,7 +55,7 @@ jobs:
 
     # 7.5 fetch tag
     - name: Fetch newly pushed tag          
-      run: git fetch origin tag "${{ steps.tag.outputs.tag }}" --no-tags
+      run: git fetch origin tag "${{ steps.version.outputs.tag }}" --no-tags
     
     # 8 - Create release
 
