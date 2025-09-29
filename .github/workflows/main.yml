@@ -42,7 +42,7 @@ jobs:
 
     # chcp for rich lib
     - name: change page 
-      run: chcp 65001
+      # run: chcp 65001
     
     # 4. Install Flet-CLI
     - name: Install Flet
