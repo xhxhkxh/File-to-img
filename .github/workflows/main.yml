@@ -41,11 +41,19 @@ jobs:
     - name: Build APK
       run: flet build apk
 
-    #7 - Generate name
+    #7 - Generate name & push tag
     - name: Generate name
       id: version
       run: echo "tag=v$(date +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}" >> $GITHUB_OUTPUT
+   
+    - name: Create and push tag
+      run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
 
+    
     # 8 - Create release
     - name: Create release
       uses: ncipollo/release-action@v1
