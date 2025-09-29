@@ -67,14 +67,9 @@ jobs:
 
     # 7.  Release
     - name: Create release
-      uses: ncipollo/release-action@v1
+      uses: softprops/action-gh-release@v2
       with:
-        tag: ${{ steps.version.outputs.tag }}
-        name: Android APK Release ${{ steps.version.outputs.tag }}
-        body: |
-          Auto-generated from commit ${{ github.sha }}.
-          Flutter ${{ env.FLUTTER_VERSION }} / Dart 3.9
-        artifacts: build/app/outputs/flutter-apk/app-release.apk
-        artifactContentType: application/vnd.android.package-archive
-        makeLatest: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+        files: build/app/outputs/flutter-apk/app-release.apk        
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
