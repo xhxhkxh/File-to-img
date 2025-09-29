@@ -15,12 +15,14 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
     # 1. Fetch code
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     # 2. Install Python
     - uses: actions/setup-python@v5
