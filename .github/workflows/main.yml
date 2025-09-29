@@ -55,19 +55,28 @@ jobs:
 
     
     # 8 - Create release
-    - name: Create release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: ${{ steps.version.outputs.tag }}
-        name: Android APK Release ${{ steps.version.outputs.tag }}
-        body: |
-          Auto-generated release from commit sha ${{ github.sha }} by GitHub Actions.
-          Compile time: ${{ github.event.head_commit.timestamp }}.
 
-        artifacts: build/app/outputs/flutter-apk/app-release.apk
-        artifactContentType: application/vnd.android.package-archive
-        makeLatest: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release & Upload
+      uses: softprops/action-gh-release@v2
+      with:
+        files: build/app/outputs/flutter-apk/app-release.apk        
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: $
+          
+    #- name: Create release
+     # uses: ncipollo/release-action@v1
+     # with:
+     #   tag: ${{ steps.version.outputs.tag }}
+      # name: Android APK Release ${{ steps.version.outputs.tag }}
+     #   body: |
+      #    Auto-generated release from commit sha ${{ github.sha }} by GitHub Actions.
+      #    Compile time: ${{ github.event.head_commit.timestamp }}.
+
+       # artifacts: build/app/outputs/flutter-apk/app-release.apk
+       # artifactContentType: application/vnd.android.package-archive
+     #   makeLatest: true
+     #   token: ${{ secrets.GITHUB_TOKEN }}
 
 
 
