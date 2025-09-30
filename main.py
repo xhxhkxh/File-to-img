@@ -6,9 +6,7 @@ from os import path
 import sys
 import io
 import base64
-
-restore_manual_cancel = False
-restore_file_name = None
+import os
 
 
 def pil_to_b64(pil_img: Image.Image) -> str:
@@ -16,6 +14,122 @@ def pil_to_b64(pil_img: Image.Image) -> str:
     pil_img.save(buf, format="PNG")
     buf.seek(0)
     return base64.b64encode(buf.read()).decode()
+
+
+def _is_android_env() -> bool:
+    """Rudimentary check whether we're running on Android."""
+    try:
+        return sys.platform.startswith('linux') and (
+            'ANDROID_BOOTLOGO' in os.environ or
+            'ANDROID_ROOT' in os.environ or
+            'ANDROID_DATA' in os.environ
+        )
+    except Exception:
+        return False
+
+
+def _write_bytes_to_saf_uri(uri_str: str, data: bytes) -> bool:
+    """Try to write bytes to a content:// URI using available Android bridges.
+
+    Returns True on success, False on failure.
+    """
+    # Try an "android" helper module first (some packagers provide helpers)
+    try:
+        import android as _android
+        if hasattr(_android, 'open_file'):
+            with _android.open_file(uri_str, 'wb') as f:
+                f.write(data)
+            return True
+    except Exception:
+        pass
+
+    # Try pyjnius to call Android APIs (preferred path)
+    try:
+        from jnius import autoclass, cast
+
+        Uri = autoclass('android.net.Uri')
+        activity = None
+        # Known activity classes from various packagers
+        for clsname in (
+            'org.kivy.android.PythonActivity',
+            'com.chaquo.python.PythonActivity',
+            'org.renpy.android.PythonActivity',
+            'org.beeware.android.PythonActivity',
+            'io.flutter.embedding.android.FlutterActivity'
+        ):
+            try:
+                PyAct = autoclass(clsname)
+                # Try common patterns to obtain activity instance
+                if hasattr(PyAct, 'mActivity'):
+                    activity = PyAct.mActivity
+                    break
+                elif hasattr(PyAct, 'getInstance'):
+                    activity = PyAct.getInstance()
+                    break
+            except Exception:
+                continue
+
+        # Fallback: ActivityThread.currentActivity()
+        if activity is None:
+            try:
+                ActivityThread = autoclass('android.app.ActivityThread')
+                activity = ActivityThread.currentActivity()
+            except Exception:
+                activity = None
+
+        if activity is None:
+            return False
+
+        resolver = activity.getContentResolver()
+        uri = Uri.parse(uri_str)
+
+        # First try: openOutputStream (convenient)
+        try:
+            outstream = resolver.openOutputStream(uri)
+            if outstream is not None:
+                chunk_size = 16384
+                off = 0
+                b = data
+                while off < len(b):
+                    end = min(off + chunk_size, len(b))
+                    outstream.write(bytearray(b[off:end]))
+                    off = end
+                outstream.close()
+                return True
+        except Exception:
+            # Continue to fallback method
+            pass
+
+        # Fallback: openFileDescriptor + FileOutputStream
+        try:
+            ParcelFileDescriptor = autoclass('android.os.ParcelFileDescriptor')
+            FileOutputStream = autoclass('java.io.FileOutputStream')
+
+            pfd = resolver.openFileDescriptor(uri, 'w')
+            if pfd is None:
+                return False
+
+            fd = pfd.getFileDescriptor()
+            fos = FileOutputStream(fd)
+
+            # write in chunks
+            chunk_size = 16384
+            off = 0
+            b = data
+            while off < len(b):
+                end = min(off + chunk_size, len(b))
+                fos.write(bytearray(b[off:end]))
+                off = end
+
+            fos.close()
+            pfd.close()
+            return True
+        except Exception as ex2:
+            print('SAF write via pyjnius (fd fallback) failed:', ex2)
+            return False
+    except Exception as ex:
+        print('SAF write via pyjnius failed:', ex)
+        return False
 
 
 def decode(page, fp):
@@ -290,16 +404,83 @@ def main(page: ft.Page):
 
     def save_image(img):
         def on_result(e: ft.FilePickerResultEvent):
-            if e.path:
-                path = e.path if e.path.lower().endswith(
-                    (".png", ".jpg", ".jpeg")) else e.path + ".png"
-                Image.open(io.BytesIO(base64.b64decode(img))
-                           ).save(path, format="PNG")
+            try:
+                # Preferred: when a path is provided (desktop or writable path on mobile)
+                if getattr(e, "path", None):
+                    dest_path = e.path if e.path.lower().endswith(
+                        (".png", ".jpg", ".jpeg")) else e.path + ".png"
+                    Image.open(io.BytesIO(base64.b64decode(img))
+                               ).save(dest_path, format="PNG")
+                    page.snack_bar = ft.SnackBar(
+                        content=ft.Text(
+                            f"✓ Image saved as {dest_path}", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.GREEN_400,
+                        duration=2000
+                    )
+                    page.snack_bar.open = True
+                    page.update()
+                else:
+                    # Fallback when no concrete path is provided (common on some Android devices / SAF URIs)
+                    # Try SAF write if on Android and a URI-like string is available in e.files[0].uri
+                    fallback = "encoded_image.png"
+                    saved = False
+                    try:
+                        # Some flet Android builds provide a `uri` or `uri_str` attribute on the FilePicker file entry
+                        file_entry = None
+                        if getattr(e, 'files', None):
+                            file_entry = e.files[0]
+                        uri_candidate = None
+                        if file_entry is not None and hasattr(file_entry, 'uri'):
+                            uri_candidate = file_entry.uri
+                        if not uri_candidate and file_entry is not None and hasattr(file_entry, 'path'):
+                            # path may be a content URI string in some runtimes
+                            uri_candidate = file_entry.path
+
+                        if _is_android_env() and uri_candidate and uri_candidate.startswith('content://'):
+                            raw = base64.b64decode(img)
+                            if _write_bytes_to_saf_uri(uri_candidate, raw):
+                                page.snack_bar = ft.SnackBar(
+                                    content=ft.Text(
+                                        f"✓ Image saved to chosen location via SAF.", color=ft.Colors.WHITE),
+                                    bgcolor=ft.Colors.GREEN_400,
+                                    duration=3000
+                                )
+                                page.snack_bar.open = True
+                                page.update()
+                                saved = True
+                        if not saved:
+                            Image.open(io.BytesIO(base64.b64decode(img))).save(
+                                fallback, format="PNG")
+                            print(
+                                f"Warning: save_file returned no path; saved to fallback {fallback}")
+                            page.snack_bar = ft.SnackBar(
+                                content=ft.Text(
+                                    f"✓ Image saved as {fallback} (fallback). On Android the chosen location may not be directly writable; check storage permissions or use a share action.",
+                                    color=ft.Colors.WHITE),
+                                bgcolor=ft.Colors.ORANGE_400,
+                                duration=4000
+                            )
+                            page.snack_bar.open = True
+                            page.update()
+                    except Exception as saf_ex:
+                        print('SAF fallback failed:', saf_ex)
+                        Image.open(io.BytesIO(base64.b64decode(img))
+                                   ).save(fallback, format="PNG")
+                        page.snack_bar = ft.SnackBar(
+                            content=ft.Text(
+                                f"Saved to fallback {fallback}. SAF attempt failed: {saf_ex}", color=ft.Colors.WHITE),
+                            bgcolor=ft.Colors.ORANGE_400,
+                            duration=4000
+                        )
+                        page.snack_bar.open = True
+                        page.update()
+            except Exception as ex:
+                print("Save image failed:", ex)
                 page.snack_bar = ft.SnackBar(
                     content=ft.Text(
-                        f"✓ Image saved as {path}", color=ft.Colors.WHITE),
-                    bgcolor=ft.Colors.GREEN_400,
-                    duration=2000
+                        f"✗ Save failed: {ex}", color=ft.Colors.WHITE),
+                    bgcolor=ft.Colors.RED_400,
+                    duration=4000
                 )
                 page.snack_bar.open = True
                 page.update()
@@ -384,16 +565,56 @@ def main(page: ft.Page):
             restore_manual_cancel = False
 
             def on_result(e: ft.FilePickerResultEvent):
-                if e.path:
-                    path = e.path
-                    with open(path, 'wb') as file:
-                        for i in datas:
-                            file.write(i)
+                try:
+                    # Try direct write to provided path (desktop or writable path on platform)
+                    if getattr(e, "path", None):
+                        dest_path = e.path
+                        try:
+                            with open(dest_path, 'wb') as file:
+                                for i in datas:
+                                    file.write(i)
+                            page.snack_bar = ft.SnackBar(
+                                content=ft.Text(
+                                    f"✓ File restored as {dest_path}", color=ft.Colors.WHITE),
+                                bgcolor=ft.Colors.GREEN_400,
+                                duration=2000
+                            )
+                        except Exception as write_ex:
+                            # Fallback: write to local app folder instead
+                            fallback = restore_file_name if restore_file_name else "restored_file"
+                            with open(fallback, 'wb') as file:
+                                for i in datas:
+                                    file.write(i)
+                            print(
+                                f"Write to {dest_path} failed: {write_ex}; saved to fallback {fallback}")
+                            page.snack_bar = ft.SnackBar(
+                                content=ft.Text(
+                                    f"Saved to fallback {fallback} because writing to {dest_path} failed: {write_ex}",
+                                    color=ft.Colors.WHITE),
+                                bgcolor=ft.Colors.ORANGE_400,
+                                duration=4000
+                            )
+                    else:
+                        # No concrete path returned — save to fallback file in app directory
+                        fallback = restore_file_name if restore_file_name else "restored_file"
+                        with open(fallback, 'wb') as file:
+                            for i in datas:
+                                file.write(i)
+                        page.snack_bar = ft.SnackBar(
+                            content=ft.Text(
+                                f"✓ File restored as {fallback} (fallback). On Android the chosen location may not be directly writable.", color=ft.Colors.WHITE),
+                            bgcolor=ft.Colors.ORANGE_400,
+                            duration=4000
+                        )
+                    page.snack_bar.open = True
+                    page.update()
+                except Exception as ex:
+                    print("Restore failed:", ex)
                     page.snack_bar = ft.SnackBar(
-                        content=ft.Text(f"✓ File restored as {path}",
-                                        color=ft.Colors.WHITE),
-                        bgcolor=ft.Colors.GREEN_400,
-                        duration=2000
+                        content=ft.Text(
+                            f"✗ File restore failed: {ex}", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.RED_400,
+                        duration=4000
                     )
                     page.snack_bar.open = True
                     page.update()
