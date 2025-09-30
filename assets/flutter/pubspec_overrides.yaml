@@ -1,0 +1,4 @@
+dependency_overrides:
+  webview_flutter: 4.4.2
+  webview_flutter_android: 3.16.0
+  webview_flutter_platform_interface: 2.10.0

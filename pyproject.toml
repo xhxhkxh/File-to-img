@@ -1,0 +1,27 @@
+[build-system]
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "File2Img"
+version = "0.1.0"
+description = "A tiny GUI tool that embeds any file into a PNG image and vice versa, powered by Flet."
+readme = "README.md"     
+requires-python = ">=3.8"
+dependencies = [
+    "flet>=0.11.0",
+    "Pillow>=9.0.0",
+]
+
+[project.scripts]           
+fti = "main:main" 
+
+[tool.hatch.build.targets.wheel]
+packages = ["."] 
+
+[tool.flet.android]
+min_sdk_version = 24
+
+[tool.flet.flutter.pubspec.dependency_overrides]
+webview_flutter_android = "4.10.1"
+
