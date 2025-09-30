@@ -37,6 +37,16 @@ jobs:
     - name: Build APK
       run: flet build apk
 
+    #4.5 upload to artifacts
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build results
+        path: build/apk/
+        retention-days: 1
+        overwrite: true
+
     # 5.  Release
     - name: Create release
       uses: softprops/action-gh-release@v2
