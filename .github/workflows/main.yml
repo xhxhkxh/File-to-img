@@ -35,7 +35,7 @@ jobs:
 
     # 4. Build APK
     - name: Build APK
-      run: flet build apk -y
+      run: yes | flet build apk
 
     #4.5 upload to artifacts
 
