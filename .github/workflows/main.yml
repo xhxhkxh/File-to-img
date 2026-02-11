@@ -53,5 +53,6 @@ jobs:
       with:
         files: build/apk/app-release.apk        
         generate_release_notes: true
+        tag_name: ${{ github.ref_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
