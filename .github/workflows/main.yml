@@ -2,7 +2,7 @@ name: Build APK (Flutter 3.35.1)
 
 on:
   push:
-    branches: [ flet ]
+    branches: [ flet, feature/MFS ]
     tags:
       - 'v*'
   workflow_dispatch:
