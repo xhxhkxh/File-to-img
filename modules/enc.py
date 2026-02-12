@@ -10,7 +10,6 @@ from math import sqrt, ceil
 from PIL import Image
 from modules.tool import b2mb, sep
 import PIL
-from alive_progress import alive_bar
 
 
 print("[ENC] Loading module...")
