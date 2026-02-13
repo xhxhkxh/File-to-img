@@ -171,7 +171,7 @@ def decode(img: Image.Image) -> list[bytes]:
         for j in i:
             unzip_data.append(j)
     print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
-    head = bytes(unzip_data[:500])
+    head = bytes(unzip_data[:512])
     head_str = head.decode("utf-8")
     # 解析文件头中的文件名信息
     fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
@@ -181,8 +181,8 @@ def decode(img: Image.Image) -> list[bytes]:
         1].split(CUSTOM_FILESIZE_END)[0]
     print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
     print(f"{SUB_LOG_PREFIX}[DEC] Extracting file data...")
-    # 提取实际的文件数据（跳过前500字节的文件头）
-    ext_data = unzip_data[500:500+int(size)]
+    # 提取实际的文件数据（跳过前512字节的文件头）
+    ext_data = unzip_data[512:512+int(size)]
 
     print(
         f"{SUB_LOG_PREFIX}[DEC] Readed {len(ext_data)} b, {b2mb(len(ext_data))} mb, checking it with file head...")

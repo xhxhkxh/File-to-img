@@ -50,7 +50,7 @@ async def mainEncode(page: ft.Page) -> None:
     page.update()
 
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
     global globalfiles
     # Page Settings
     page.title = "File to Image Converter"
@@ -93,6 +93,22 @@ def main(page: ft.Page):
 
     # UI Section
 
+    # Page: Main Page
+    def main_page():
+        return ft.View(
+            route="/", controls=main_page_ctrls)
+
+    # Page: Encoding page
+
+    def encoding_page():
+        return ft.View(
+            route="/encode", controls=enc_page_ctrls)
+
+    # Page: Decoding page
+    def decoding_page():
+        return ft.View(
+            route="/decode", controls=dec_page_ctrls)
+
     cancel_dialog = ft.AlertDialog(
         title="Pick File Cancelled",
         alignment=ft.Alignment.CENTER,
@@ -111,7 +127,8 @@ def main(page: ft.Page):
         actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
     )
 
-    header = ft.Text("File to Image Converter", size=20)
+    header = ft.Text("File to Image Converter",
+                     size=20, align=ft.Alignment.CENTER)
 
     enc_container = ft.Container(content=ft.Column([
         ft.Text("Encode a file to an image:"),
@@ -138,11 +155,54 @@ def main(page: ft.Page):
     save_btn = ft.Button(
         "Save", on_click=lambda e: page.run_task(save_file), icon=ft.icons.Icons.DOWNLOAD)
 
-    page_ctrls = [header, enc_container,
-                  enc_cf_btn, fileContainer, enc_btn, save_btn]
+    jmp_dec_btn = ft.TextButton(
+        "Go to Decode Page", on_click=lambda _: asyncio.create_task(page.push_route("/decode")))
 
-    for i in page_ctrls:
-        page.add(i)
+    enc_page_ctrls = [header, enc_container,
+                      enc_cf_btn, fileContainer, enc_btn, save_btn, jmp_dec_btn]
+
+    # UI for decoding page
+
+    dec_text = ft.Text("Decode an image to file:")
+    pcBtn = ft.Button("Back to Encoding Page", on_click=lambda _: asyncio.create_task(
+        page.push_route("/encode")))
+    dec_page_ctrls = [header, dec_text, pcBtn]
+
+    # UI for main page
+
+    mHearder = ft.Text("Welcome to File to Image Converter!", size=20)
+    mText = ft.Text(
+        "This application allows you to encode any file into a PNG image and decode it back to the original file. Click the button below to get started.")
+    mEncBtn = ft.Button(
+        "Start Encode", on_click=lambda _: page.push_route("/encode"))
+    mDecBtn = ft.Button(
+        "Start Decode", on_click=lambda _: page.push_route("/decode"))
+    main_page_ctrls = [mHearder, mText, mEncBtn, mDecBtn]
+
+    # Page Routing
+    def route_change(route):
+        page.views.clear()
+        page.views.append(encoding_page())
+        if page.route == "/encode":
+            page.views.clear()
+            page.views.append(encoding_page())
+        elif page.route == "/decode":
+            page.views.clear()
+            page.views.append(decoding_page())
+        elif page.route == "/":
+            page.views.clear()
+            page.views.append(main_page())
+
+    async def view_pop(view):
+        page.views.pop()
+        top_view = page.views[-1]
+        await page.push_route(top_view.route)  # type: ignore
+        page.update()
+
+    page.on_route_change = route_change
+    page.on_view_pop = view_pop
+    asyncio.create_task(page.push_route("/encode"))  # type: ignore
+    page.update()
 
 
 if __name__ == "__main__":
