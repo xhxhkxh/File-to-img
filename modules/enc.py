@@ -3,6 +3,7 @@
 
 This sub module contains the core functions of encoding and decoding.
 '''
+import io
 from modules.custom import CUSTOM_FILENAME_BEGIN, CUSTOM_FILENAME_END, CUSTOM_FILESIZE_BEGIN, CUSTOM_FILESIZE_END, SUB_LOG_PREFIX
 from modules.custom import getPrefix
 from os import path
@@ -126,10 +127,16 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
     print(getPrefix(3), re_bt_size, write_count *
           3, re_bt_size - write_count*3, offset)
 
+    print(f"{getPrefix(3)} [ENC-BytesOutput] Conving into bytes.")
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    img_bytes = buffer.getvalue()
+
     print(f"{getPrefix(3)} [ENC-RiskControl] OK")
 
     print(f"{SUB_LOG_PREFIX} [ENC] Encoding completed.")
-    return (img, img.tobytes())
+    return (img, img_bytes)
 
 
 def decode(img: Image.Image) -> list[bytes]:

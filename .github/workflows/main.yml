@@ -13,12 +13,12 @@ env:
   PYTHONIOENCODING: utf-8 
 
 jobs:
-  build_APK:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # 1. Fetch code
+    # 1. Fetch code
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -31,79 +31,28 @@ jobs:
     # 3. Install Flet-CLI
     - name: Install Flet
       run: python -m pip install flet
+
+
     # 4. Build APK
     - name: Build APK
-      run: yes | flet build apk    
-    #4.5 upload to artifact   
+      run: yes | flet build apk
+
+    #4.5 upload to artifacts
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build results apk
+        name: build results
         path: build/apk/
-        retention-days: 1
-        overwrite: true    
-
-  build_win:
-    runs-on: windows-latest
-    permissions:
-      contents: write
-    steps:
-      # 1. Fetch code
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    # 2. Install Flet-CLI
-    - name: Install Flet
-      run: python -m pip install flet
-    # 3. Build Win
-    - name: Build Win
-      run: flet build windows  --yes    
-    #4 upload to artifact   
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: build results win
-        path: build/windows/
         retention-days: 1
         overwrite: true
 
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    needs: [build_APK, build_win]
-    steps:
-    - name: Download APK artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: build results apk
-        path: build/apk/
-    
-    - name: Download Windows artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: build results win
-        path: build/windows/
-    
-    - name: Zip Windows build
-      run: |
-        cd build/windows
-        zip -r ../../myapp-windows-${{ github.ref_name }}.zip *
-        cd ../..
-    
+    # 5.  Release
     - name: Create release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          build/apk/app-release.apk
-          myapp-windows-${{ github.ref_name }}.zip
+        files: build/apk/app-release.apk        
         generate_release_notes: true
         tag_name: ${{ github.ref_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    
-
-
-    
