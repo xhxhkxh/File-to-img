@@ -90,9 +90,6 @@ def main(page: ft.Page):
             print("Save cancelled.")
             page.show_dialog(cancel_dialog)
             return
-        print(files)
-        im = Image.open(BytesIO(base64.b64decode(enc_b64)))
-        im.save(files)
 
     # UI Section
 
