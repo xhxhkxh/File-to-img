@@ -21,7 +21,7 @@ print("[ENC] Loading custom settings...")
 print("[ENC] Module loaded.")
 
 
-def encode(filePath: str) -> Image.Image:
+def encode(filePath: str) -> tuple[Image.Image, bytes]:
     '''
     将文件编码为图像格式
 
@@ -129,7 +129,7 @@ def encode(filePath: str) -> Image.Image:
     print(f"{getPrefix(3)} [ENC-RiskControl] OK")
 
     print(f"{SUB_LOG_PREFIX} [ENC] Encoding completed.")
-    return img
+    return (img, img.tobytes())
 
 
 def decode(img: Image.Image) -> list[bytes]:

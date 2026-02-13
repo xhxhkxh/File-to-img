@@ -10,10 +10,11 @@ import asyncio
 globalfiles = []
 
 enc_b64 = ''
+enc_bytes = b''
 
 
 async def mainEncode(page: ft.Page) -> None:
-    global globalfiles, enc_b64
+    global globalfiles, enc_b64, enc_bytes
 
     pring = ft.ProgressRing(visible=True, width=20,
                             height=20, align=ft.Alignment.CENTER)
@@ -37,7 +38,8 @@ async def mainEncode(page: ft.Page) -> None:
         print("[Main-ENC] Invalid file path! Exiting...")
         return
     resImage = encode(globalfiles[0])
-    enc_b64 = pil_to_b64(resImage)
+    enc_b64 = pil_to_b64(resImage[0])
+    enc_bytes = resImage[1]
     et = datetime.now()
     print(f"[{et}][Main-ENC] Exited with b64:", enc_b64[:100] + "...")
     ee = et - st
@@ -83,7 +85,7 @@ def main(page: ft.Page):
             print("No file to save.")
             page.show_dialog(not_encoded_dialog)
             return
-        files = await ft.FilePicker().save_file(allowed_extensions=[".png"], file_name="encoded_image.png")
+        files = await ft.FilePicker().save_file(allowed_extensions=[".png"], file_name="encoded_image.png", src_bytes=enc_bytes)
         if files is None:
             print("Save cancelled.")
             page.show_dialog(cancel_dialog)
