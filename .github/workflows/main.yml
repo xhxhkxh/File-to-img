@@ -13,12 +13,12 @@ env:
   PYTHONIOENCODING: utf-8 
 
 jobs:
-  prep_env:
+  build_APK:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-    # 1. Fetch code
+      # 1. Fetch code
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -31,13 +31,6 @@ jobs:
     # 3. Install Flet-CLI
     - name: Install Flet
       run: python -m pip install flet
-
-  build_APK:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    needs: prep_env
-    steps:
     # 4. Build APK
     - name: Build APK
       run: yes | flet build apk    
@@ -54,8 +47,20 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
-    needs: prep_env
     steps:
+      # 1. Fetch code
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # 2. Install Python
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    # 3. Install Flet-CLI
+    - name: Install Flet
+      run: python -m pip install flet
     # 4. Build Win
     - name: Build Win
       run: yes | flet build windows    
