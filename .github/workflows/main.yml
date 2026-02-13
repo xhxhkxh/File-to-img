@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    needs: build_APK, build_win
+    needs: [build_APK, build_win]
     steps:
     # 5.  Release
     - name: Create release
