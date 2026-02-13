@@ -38,7 +38,7 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build results
+        name: build results apk
         path: build/apk/
         retention-days: 1
         overwrite: true    
@@ -63,7 +63,7 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build results
+        name: build results win
         path: build/windows/
         retention-days: 1
         overwrite: true
@@ -74,11 +74,30 @@ jobs:
       contents: write
     needs: [build_APK, build_win]
     steps:
-    # 5.  Release
+    - name: Download APK artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: build results apk
+        path: build/apk/
+    
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: build results win
+        path: build/windows/
+    
+    - name: Zip Windows build
+      run: |
+        cd build/windows
+        zip -r ../../myapp-windows-${{ github.ref_name }}.zip *
+        cd ../..
+    
     - name: Create release
       uses: softprops/action-gh-release@v2
       with:
-        files: build/apk/app-release.apk,build/windows/*.exe        
+        files: |
+          build/apk/app-release.apk
+          myapp-windows-${{ github.ref_name }}.zip
         generate_release_notes: true
         tag_name: ${{ github.ref_name }}
       env:
