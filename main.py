@@ -2,7 +2,7 @@ import base64
 from io import BytesIO
 import flet as ft
 from PIL import Image, ImageShow
-from modules.enc import encode, decode
+from modules.enc import encode, decode, headerInfo
 from modules.tool import sep, b2mb, pil_to_b64
 from datetime import datetime
 import asyncio
@@ -60,6 +60,22 @@ async def main(page: ft.Page):
 
     # Func
 
+    async def handle_file_decode() -> None:
+        global globalfiles
+        files = await ft.FilePicker().pick_files(allow_multiple=False, allowed_extensions=["png"])
+        fileValues = [i.path for i in files] if files else "Cancelled"
+        if fileValues == "Cancelled":
+            page.show_dialog(cancel_dialog)
+            return
+        print(fileValues)
+        img = Image.open(fileValues[0])  # type: ignore
+        info = headerInfo(img)
+        fName.value = "Filename: " + info[0]
+        fSize.value = "Filesize: " + \
+            str(b2mb(info[1])) + f" MB - ({info[1]}) bytes)"
+        page.update()
+        globalfiles = fileValues[0]
+
     async def handle_file_picked() -> list | str:
         global globalfiles
         files = await ft.FilePicker().pick_files(allow_multiple=False)
@@ -91,23 +107,36 @@ async def main(page: ft.Page):
             page.show_dialog(cancel_dialog)
             return
 
+    async def save_dec_file() -> None:
+        global globalfiles
+        if globalfiles == []:
+            print("No file to save.")
+            page.show_dialog(not_encoded_dialog)
+            return
+        fn = fName.value.split("Filename: ")[1]
+        sf = await ft.FilePicker().save_file(file_name=fn, src_bytes=decode(Image.open(globalfiles)))  # type: ignore
+        if sf is None:
+            print("Save cancelled.")
+            page.show_dialog(cancel_dialog)
+            return
+
     # UI Section
 
     # Page: Main Page
     def main_page():
         return ft.View(
-            route="/", controls=main_page_ctrls)
+            route="/", controls=main_page_ctrls, scroll=ft.ScrollMode.ADAPTIVE)
 
     # Page: Encoding page
 
     def encoding_page():
         return ft.View(
-            route="/encode", controls=enc_page_ctrls)
+            route="/encode", controls=enc_page_ctrls, scroll=ft.ScrollMode.ADAPTIVE)
 
     # Page: Decoding page
     def decoding_page():
         return ft.View(
-            route="/decode", controls=dec_page_ctrls)
+            route="/decode", controls=dec_page_ctrls, scroll=ft.ScrollMode.ADAPTIVE)
 
     cancel_dialog = ft.AlertDialog(
         title="Pick File Cancelled",
@@ -164,9 +193,28 @@ async def main(page: ft.Page):
     # UI for decoding page
 
     dec_text = ft.Text("Decode an image to file:")
+    hint_text = ft.Text("Select an encoded image, and the file header would be auto\
+matically shown below.")
+
+    fileSelectBtn = ft.Button("Select Image", on_click=lambda e: page.run_task(
+        handle_file_decode), icon=ft.icons.Icons.FOLDER_OPEN)
+
+    saveFileBtn = ft.Button("Save Decoded File", on_click=lambda e: page.run_task(
+        save_dec_file), icon=ft.icons.Icons.DOWNLOAD)
+
+    # Decoding file header prediction
+    fName = ft.Text("Filename: ")
+    fSize = ft.Text("Filesize: ")
+
+    fileHeaderContainer = ft.Container(content=ft.Column([
+        fName, fSize]), alignment=ft.Alignment.CENTER, padding=10, border=ft.Border.all(1, "black"), width=400)
+
+    # ------------------------------------------------
+
     pcBtn = ft.Button("Back to Encoding Page", on_click=lambda _: asyncio.create_task(
         page.push_route("/encode")))
-    dec_page_ctrls = [header, dec_text, pcBtn]
+    dec_page_ctrls = [header, hint_text, dec_text,
+                      fileHeaderContainer, fileSelectBtn, pcBtn, saveFileBtn]
 
     # UI for main page
 

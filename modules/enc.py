@@ -139,7 +139,41 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
     return (img, img_bytes)
 
 
-def decode(img: Image.Image) -> list[bytes]:
+def headerInfo(img: Image.Image) -> tuple[str, int]:
+    '''
+    headerInfo 的 Docstring
+
+    :param img: 传入的图像
+    :type img: Image.Image
+    :return: 文件名，文件大小
+    :rtype: tuple[str, int]
+    '''
+    print(f"{getPrefix(1)} [FileHeader] Analyzing file header...")
+    data = []
+    w, h = img.size
+    readC = 0
+    for i in range(w):
+        for j in range(h):
+            data.append(img.getpixel((i, j)))
+            readC += 1
+            if readC >= 512:
+                break
+    print(f"{getPrefix(1)} [FileHeader] Data processing...")
+    unzip_data = []
+    for i in data:
+        for j in i:
+            unzip_data.append(j)
+    head = bytes(unzip_data[:512])
+    head_str = head.decode("utf-8")
+    fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
+        1].split(CUSTOM_FILENAME_END+",")[0]
+    size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
+        1].split(CUSTOM_FILESIZE_END)[0]
+    print(f"{getPrefix(1)} [FileHeader] Done with:{fn}, {size} bytes")
+    return (fn, int(size))
+
+
+def decode(img: Image.Image) -> bytes:
     '''
     从图像中解码提取原始文件数据
 
@@ -185,10 +219,10 @@ def decode(img: Image.Image) -> list[bytes]:
     ext_data = unzip_data[512:512+int(size)]
 
     print(
-        f"{SUB_LOG_PREFIX}[DEC] Readed {len(ext_data)} b, {b2mb(len(ext_data))} mb, checking it with file head...")
+        f"{SUB_LOG_PREFIX}[DEC] Readed {len(ext_data)} b, {b2mb(len(ext_data))} mb, comparing it with file head...")
     # 验证提取的数据大小是否与文件头中声明的大小一致
     if len(ext_data) != int(size):
         print(f"{SUB_LOG_PREFIX}Error occured when handleing file data, exiting...")
         raise Exception("File Size Mismatch at Decoding process")
     print(f"{SUB_LOG_PREFIX}[DEC] Decoding completed.")
-    return [i for i in ext_data]
+    return bytes(ext_data)
