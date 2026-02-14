@@ -4,8 +4,9 @@
 This sub module contains the core functions of encoding and decoding.
 '''
 import io
-from modules.custom import CUSTOM_FILENAME_BEGIN, CUSTOM_FILENAME_END, CUSTOM_FILESIZE_BEGIN, CUSTOM_FILESIZE_END, SUB_LOG_PREFIX
-from modules.custom import getPrefix
+from modules.custom import CUSTOM_FILENAME_BEGIN, CUSTOM_FILENAME_END, CUSTOM_FILESIZE_BEGIN, CUSTOM_FILESIZE_END, SUB_LOG_PREFIX, CUSTOM_CHECKSUM_BEGIN, CUSTOM_CHECKSUM_END
+from modules.custom import getPrefix, MB_SIZE
+from modules.crc_check import direct_crc16_ccitt
 from os import path
 from math import sqrt, ceil
 from PIL import Image
@@ -43,19 +44,58 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
 
     # 读取文件的二进制数据
     with open(filePath, 'rb') as file:
-        data = file.read()
+
+        size = path.getsize(filePath)
+
+        if size > MB_SIZE * 100:
+            print(
+                f"{getPrefix(2)} [ENC-Reader:WARN] File size is larger than 100 mb, would read in chunks with report mode on.")
+            print(f"{getPrefix(2)} [ENC-Reader:WARN] LFS mode engaged.")
+            chunks = []
+            total_read = 0
+            chunk_size = MB_SIZE
+            rep_size = max(MB_SIZE, (size) // 100)
+            while total_read < size:
+                remaining = size - total_read
+                if remaining < chunk_size:
+                    chunk_size = remaining
+                if total_read % rep_size == 0:
+                    print(
+                        f"{getPrefix(3)} [ENC-Reader] Reading {b2mb(total_read)}/{b2mb(size)} mb) | Progress: {total_read/size*100:.2f}%", end='\r')
+                chunk = file.read(chunk_size)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total_read += len(chunk)
+            data = b''.join(chunks)
+        else:
+            data = file.read()
+
     fn = path.basename(filePath)
+    print(
+        f"\n{getPrefix(1)} [ENC] File read completed, size: {len(data)} bytes ({b2mb(len(data))} mb)")
+    print(f"{getPrefix(1)} [ENC-Checksum] Calculating CRC16-CCITT checksum...")
+    bin_crc = direct_crc16_ccitt(data, True if size > MB_SIZE else False)
+    print(f"\n{getPrefix(1)} [ENC-Checksum] CRC16-CCITT: {hex(bin_crc)}")
 
     # 将数据转换为字节列表
     bytes = []
+    report_toggle = True if size > MB_SIZE*100 else False
+    report_size = max(MB_SIZE, (size) // 100)
     for byte in data:
+        if report_toggle and len(bytes) % (report_size) == 0:
+            print(
+                f"\r{getPrefix(2)} [ENC-ByteProcess] Processed {b2mb(len(bytes))}/{b2mb(len(data))} mb) | Progress: {len(bytes)/len(data)*100:.2f}%", end="")
         bytes.append(byte)
     byte_size = len(bytes)
 
     print(f"{SUB_LOG_PREFIX} [ENC] Adding file header.")
     # 创建包含文件信息的头部
     file_head = str(f"{CUSTOM_FILENAME_BEGIN}{fn}{CUSTOM_FILENAME_END},{CUSTOM_FILESIZE_BEGIN}" +
-                    str(byte_size) + f"{CUSTOM_FILESIZE_END}").encode("utf-8")
+                    str(byte_size) + f"{CUSTOM_FILESIZE_END}{CUSTOM_CHECKSUM_BEGIN}{bin_crc}{CUSTOM_CHECKSUM_END}").encode("utf-8")
+
+    print(
+        f"{getPrefix(2)} [ENC-Constuct] File head content: {file_head.decode('utf-8')}")
 
     file_head_l = []
     for b in file_head:
@@ -66,7 +106,7 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
         f"{SUB_LOG_PREFIX} [ENC]Current file head size is {len(file_head_l)}, would expand to 512 b")
     offset = 512 - len(file_head_l)
     if offset < 0:
-        print(f"{SUB_LOG_PREFIX} [ENC-WARN]File head too long! Exiting!")
+        print(f"{SUB_LOG_PREFIX} [ENC-ERR]File head too long! Exiting!")
         exit(0)
     for i in range(offset):
         file_head_l.append(0)
@@ -80,13 +120,21 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
 
     print(f"{getPrefix(2)} [ENC-INFO]Performing format...")
     # 将字节数据按RGB三元组分组
-    rgb_spl = [bytes[i:i+3] for i in range(0, len(bytes), 3)]
+    if report_toggle:
+        rgb_spl = []
+        for i in range(0, len(bytes), 3):
+            if len(rgb_spl) % (report_size // 3) == 0:
+                print(
+                    f"\r{getPrefix(3)} [ENC-Format] Processed {b2mb(len(rgb_spl)*3):.2f}/{b2mb(len(bytes)):.2f} mb) | Progress: {len(rgb_spl)*3/len(bytes)*100:.2f}%", end="")
+            rgb_spl.append(bytes[i:i+3])
+    else:
+        rgb_spl = [bytes[i:i+3] for i in range(0, len(bytes), 3)]
 
     # 计算图像尺寸（正方形）
     imgsize = ceil(sqrt(len(rgb_spl)))
 
-    print("{} [ENC-INFO]Original file size:{} b (Estimalte {} mb)\nImage output would be {}x{}".format(getPrefix(2),
-                                                                                                       byte_size, byte_size / 1048576,  imgsize, imgsize))
+    print("\n{} [ENC-INFO]Original file size:{} b (Estimalte {} mb)\nImage output would be {}x{}".format(getPrefix(2),
+                                                                                                         byte_size, byte_size / MB_SIZE,  imgsize, imgsize))
 
     stack_size = imgsize*imgsize
     print("[ENC-SizeAnalyze]Performing square filling...")
@@ -119,6 +167,9 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
     # 将RGB数据写入图像像素
     for i in range(imgsize):
         for j in range(imgsize):
+            if report_toggle and write_count % (report_size // 3) == 0:
+                print(
+                    f"\r{getPrefix(3)} [ENC-LW] Processed {b2mb(write_count*3):.2f}/{b2mb(len(bytes)):.2f} mb) | Progress: {write_count*3/len(bytes)*100:.2f}%", end="")
             img.putpixel((i, j), (sep(rgb_spl[write_count])))
             write_count += 1
     print(f"{getPrefix(2)} [ENC-LW]Done.")

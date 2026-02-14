@@ -35,7 +35,7 @@ async def mainEncode(page: ft.Page) -> None:
     print(f"[{st}][Main-ENC] Entering encoding sequence...")
     print(f"[Main-ENC] File to encode: {globalfiles[0]}")
     if (type(globalfiles[0]) != str):
-        print("[Main-ENC] Invalid file path! Exiting...")
+        print("[Main-ENC:ERROR] Invalid file path! Exiting...")
         return
     resImage = encode(globalfiles[0])
     enc_b64 = pil_to_b64(resImage[0])
@@ -44,9 +44,22 @@ async def mainEncode(page: ft.Page) -> None:
     print(f"[{et}][Main-ENC] Exited with b64:", enc_b64[:100] + "...")
     ee = et - st
     print(f"[Main-ENC] Time taken: {ee}")
-    img = ft.Image(src=enc_b64, width=400, height=400)
-    page.remove(pring)
-    page.add(img)
+    current_view = page.views[-1]
+    if b2mb(len(enc_bytes)) >= 100:
+        warn = ft.Text("Large file is not shown in preview.")
+        prev_b64 = enc_b64[:100]
+        prev_text = ft.Text(
+            f"Preview (first 100 chars of base64): {prev_b64}...")
+
+        current_view.controls.append(warn)
+        current_view.controls.append(prev_text)
+    else:
+        img = ft.Image(src=enc_b64, width=400, height=400)
+        current_view.controls.append(img)
+    for view in page.views:
+        if pring in view.controls:
+            view.controls.remove(pring)
+            break
     page.update()
 
 
