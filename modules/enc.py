@@ -190,7 +190,7 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
     return (img, img_bytes)
 
 
-def headerInfo(img: Image.Image) -> tuple[str, int]:
+def headerInfo(img: Image.Image) -> tuple[str, int, str]:
     '''
     headerInfo 的 Docstring
 
@@ -220,11 +220,85 @@ def headerInfo(img: Image.Image) -> tuple[str, int]:
         1].split(CUSTOM_FILENAME_END+",")[0]
     size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
         1].split(CUSTOM_FILESIZE_END)[0]
-    print(f"{getPrefix(1)} [FileHeader] Done with:{fn}, {size} bytes")
-    return (fn, int(size))
+    checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
+        1].split(CUSTOM_CHECKSUM_END)[0]
+    print(
+        f"{getPrefix(1)} [FileHeader] Done with:{fn}, {size} bytes, checkusm:{checksum}")
+    return (fn, int(size), hex(int(checksum)))
 
 
-def decode(img: Image.Image) -> bytes:
+def getChecksum(img: Image.Image) -> str:
+    '''
+    计算数据的CRC16校验和
+
+    参数:
+        data (bytes): 需要计算校验和的数据
+
+    返回:
+        str: 计算得到的CRC16校验和十六进制字符串
+    '''
+    # 初始化数据存储和图像尺寸
+    data = []
+    w, h = img.size
+
+    # 计算图像总大小并确定是否需要进度报告
+    size = w*h*3 / MB_SIZE
+    report = True if size > 100 else False
+    report_interval = (w*h) // 100
+    print(f"{getPrefix(2)}[DEC] Running with report: {report}")
+    wc = 0
+
+    # 逐像素读取图像数据
+    for i in range(w):
+        for j in range(h):
+            data.append(img.getpixel((i, j)))
+            if report:
+                wc += 1
+            if report and wc % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Reader] Reading {wc} bytes, progress:{wc / (w*h)*100:.2f}")
+
+    # 展平嵌套的像素数据为一维列表
+    unzip_data = []
+    writeCount = 0
+    for i in data:
+        for j in i:
+            unzip_data.append(j)
+            if report:
+                writeCount += 1
+            if report and writeCount % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Flattening] Flattening {writeCount} bytes, progress:{writeCount / (w*h)*100:.2f}")
+
+    # 解析文件头信息
+    print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
+    head = bytes(unzip_data[:512])
+    head_str = head.decode("utf-8")
+
+    # 提取文件名和文件大小信息
+    fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
+        1].split(CUSTOM_FILENAME_END+",")[0]
+    size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
+        1].split(CUSTOM_FILESIZE_END)[0]
+    print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
+
+    # 获取校验和信息
+    print(f"{getPrefix(1)}[DEC] Getting checksum.")
+    checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
+        1].split(CUSTOM_CHECKSUM_END)[0]
+    print(f"{getPrefix(1)}[DEC] Getted checksum:{checksum}")
+
+    # 提取实际文件数据
+    print(f"{SUB_LOG_PREFIX}[DEC] Extracting file data...")
+    ext_data = unzip_data[512:512+int(size)]
+
+    bin_crc = direct_crc16_ccitt(
+        bytes(ext_data), True if len(ext_data) > MB_SIZE * 100 else False)
+
+    return hex(bin_crc)
+
+
+def decode(img: Image.Image, ignore_mismatch=False) -> tuple[bytes, str]:
     '''
     从图像中解码提取原始文件数据
 
@@ -238,42 +312,96 @@ def decode(img: Image.Image) -> bytes:
         img (Image.Image): 包含编码文件数据的PIL图像对象
 
     返回:
-        list[bytes]: 解码后的文件字节数据列表
+        tuple[bytes, str]: 解码后的文件字节数据和校验和元组
+        - bytes: 解码后的文件字节数据
+        - str: 计算得到的CRC16校验和十六进制字符串
 
     异常:
-        Exception: 当解码过程中文件大小不匹配时抛出
+        Exception: 当解码过程中出现以下情况时抛出：
+        - 文件大小不匹配
+        - 校验和验证失败
     '''
     print("[DEC] Decoding file...")
+
+    # 初始化数据存储和图像尺寸
     data = []
     w, h = img.size
-    # 提取图像中所有像素的RGB值
+
+    # 计算图像总大小并确定是否需要进度报告
+    size = w*h*3 / MB_SIZE
+    report = True if size > 100 else False
+    report_interval = (w*h) // 100
+    print(f"{getPrefix(2)}[DEC] Running with report: {report}")
+    wc = 0
+
+    # 逐像素读取图像数据
     for i in range(w):
         for j in range(h):
             data.append(img.getpixel((i, j)))
+            if report:
+                wc += 1
+            if report and wc % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Reader] Reading {wc} bytes, progress:{wc / (w*h)*100:.2f}")
+
+    # 展平嵌套的像素数据为一维列表
     unzip_data = []
-    # 将嵌套的像素数据展平为一维列表
+    writeCount = 0
     for i in data:
         for j in i:
             unzip_data.append(j)
+            if report:
+                writeCount += 1
+            if report and writeCount % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Flattening] Flattening {writeCount} bytes, progress:{writeCount / (w*h)*100:.2f}")
+
+    # 解析文件头信息
     print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
     head = bytes(unzip_data[:512])
     head_str = head.decode("utf-8")
-    # 解析文件头中的文件名信息
+
+    # 提取文件名和文件大小信息
     fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
         1].split(CUSTOM_FILENAME_END+",")[0]
-    # 解析文件头中的文件大小信息
     size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
         1].split(CUSTOM_FILESIZE_END)[0]
     print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
-    print(f"{SUB_LOG_PREFIX}[DEC] Extracting file data...")
-    # 提取实际的文件数据（跳过前512字节的文件头）
-    ext_data = unzip_data[512:512+int(size)]
 
+    # 获取校验和信息
+    print(f"{getPrefix(1)}[DEC] Getting checksum.")
+    checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
+        1].split(CUSTOM_CHECKSUM_END)[0]
+    print(f"{getPrefix(1)}[DEC] Getted checksum:{checksum}")
+
+    # 提取实际文件数据
+    print(f"{SUB_LOG_PREFIX}[DEC] Extracting file data...")
+    ext_data = unzip_data[512:512+int(size)]
     print(
         f"{SUB_LOG_PREFIX}[DEC] Readed {len(ext_data)} b, {b2mb(len(ext_data))} mb, comparing it with file head...")
-    # 验证提取的数据大小是否与文件头中声明的大小一致
+
+    # 验证文件大小一致性
     if len(ext_data) != int(size):
         print(f"{SUB_LOG_PREFIX}Error occured when handleing file data, exiting...")
         raise Exception("File Size Mismatch at Decoding process")
+
+    # 校验和验证
+    print(f"{getPrefix(1)}[DEC] Comparing Checksum...")
+    bin_crc = direct_crc16_ccitt(
+        bytes(ext_data), True if len(ext_data) > MB_SIZE * 100 else False)
+    print(
+        f"\n{getPrefix(1)}[DEC-Checksum] Checksum returned with {hex(bin_crc)}, origin {hex(int(checksum))}")
+
+    # 验证校验和是否匹配
+    if hex(bin_crc) != hex(int(checksum)) and not ignore_mismatch:
+        print(
+            f"{SUB_LOG_PREFIX}[DEC:ERROR] Error occured when handleing checksum, exiting...")
+        raise Exception(
+            f"Checksum Mismatch at Decoding process:{hex(bin_crc)}")
+    if hex(bin_crc) != hex(int(checksum)) and ignore_mismatch:
+        print(
+            f"{SUB_LOG_PREFIX}[DEC:WARNING] Checksum mismatch, but user ignored.")
+        return (bytes(ext_data), hex(bin_crc))
+
     print(f"{SUB_LOG_PREFIX}[DEC] Decoding completed.")
-    return bytes(ext_data)
+    return (bytes(ext_data), hex(bin_crc))

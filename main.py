@@ -11,6 +11,7 @@ globalfiles = []
 
 enc_b64 = ''
 enc_bytes = b''
+ignore_crc_mismatch = False
 
 
 async def mainEncode(page: ft.Page) -> None:
@@ -23,7 +24,7 @@ async def mainEncode(page: ft.Page) -> None:
 
     await asyncio.sleep(0.5)
 
-    if len(globalfiles) == 0:
+    if len(globalfiles) == 0:  # type: ignore
         no_file_dialog = ft.AlertDialog(
             title="No File Selected",
             alignment=ft.Alignment.CENTER,
@@ -33,11 +34,11 @@ async def mainEncode(page: ft.Page) -> None:
         return
     st = datetime.now()
     print(f"[{st}][Main-ENC] Entering encoding sequence...")
-    print(f"[Main-ENC] File to encode: {globalfiles[0]}")
-    if (type(globalfiles[0]) != str):
+    print(f"[Main-ENC] File to encode: {globalfiles[0]}")  # type: ignore
+    if (type(globalfiles[0]) != str):  # type: ignore
         print("[Main-ENC:ERROR] Invalid file path! Exiting...")
         return
-    resImage = encode(globalfiles[0])
+    resImage = encode(globalfiles[0])  # type: ignore
     enc_b64 = pil_to_b64(resImage[0])
     enc_bytes = resImage[1]
     et = datetime.now()
@@ -64,7 +65,7 @@ async def mainEncode(page: ft.Page) -> None:
 
 
 async def main(page: ft.Page):
-    global globalfiles
+    global globalfiles, ignore_crc_mismatch
     # Page Settings
     page.title = "File to Image Converter"
     page.scroll = ft.ScrollMode.ADAPTIVE
@@ -82,12 +83,29 @@ async def main(page: ft.Page):
             return
         print(fileValues)
         img = Image.open(fileValues[0])  # type: ignore
-        info = headerInfo(img)
+        try:
+            info = headerInfo(img)
+        except Exception as e:
+            print(f"Error occured during headerInfo: {e}")
+            errText = ft.Text(
+                "Error occured during headerInfo: " + str(e), color=ft.Colors.RED)
+            current_view = page.views[-1]
+            current_view.controls.append(errText)
+            page.update()
+            return
         fName.value = "Filename: " + info[0]
         fSize.value = "Filesize: " + \
             str(b2mb(info[1])) + f" MB - ({info[1]}) bytes)"
+        fChecksum.value = "Checksum: " + info[2]
+        if b2mb(info[1]) >= 100:
+            page.show_dialog(file_too_big_dialog)
         page.update()
         globalfiles = fileValues[0]
+
+    def change_ignore_crc_mismatch(ignore) -> None:
+        global ignore_crc_mismatch
+        ignore_crc_mismatch = ignore
+        print(f"[Main] Ignore CRC mismatch: {ignore_crc_mismatch}")
 
     async def handle_file_picked() -> list | str:
         global globalfiles
@@ -120,14 +138,49 @@ async def main(page: ft.Page):
             page.show_dialog(cancel_dialog)
             return
 
+    def process_checksum_mismatch_switch_change():
+        global ignore_crc_mismatch
+        ignore_crc_mismatch = not ignore_crc_mismatch
+        if ignore_crc_mismatch:
+            page.show_dialog(disable_crc_check_dialog)
+
     async def save_dec_file() -> None:
-        global globalfiles
+        global globalfiles, ignore_crc_mismatch
         if globalfiles == []:
             print("No file to save.")
             page.show_dialog(not_encoded_dialog)
             return
         fn = fName.value.split("Filename: ")[1]
-        sf = await ft.FilePicker().save_file(file_name=fn, src_bytes=decode(Image.open(globalfiles)))  # type: ignore
+        src = 'not_decoded'
+        clc = 'not_decoded'
+        try:
+            src, clcSum = decode(Image.open(globalfiles),  # type: ignore
+                                 ignore_crc_mismatch)  # type: ignore
+        except Exception as e:
+            if "Checksum Mismatch at Decoding process" in str(e):
+                if ignore_crc_mismatch == True:
+                    page.show_dialog(checksum_mismatch_dialog)
+                err_clc = str(e).split(":")[1]
+                fChecksum_calc.value = "Checksum: " + err_clc
+                page.update()
+                clc = err_clc
+            else:
+                # 其他异常
+                print(f"其他错误: {e}")
+                newErrorText = ft.Text(
+                    f"Error occuared during decode: {e}", color=ft.Colors.RED)
+                current_view = page.views[-1]
+                current_view.controls.append(newErrorText)
+                page.update()
+                raise  # 重新抛出
+        if clc != fChecksum.value[fChecksum.value.index(": ") + 1:] and not ignore_crc_mismatch:
+            # Aborted becuse checksum mismatch
+            page.show_dialog(checksum_mismatch_not_ignored_dialog)
+        fChecksum_calc.value = "Checksum: " + clcSum
+        if clcSum != fChecksum.value[fChecksum.value.index(": ") + 1:] and ignore_crc_mismatch:
+            page.show_dialog(checksum_mismatch_dialog)
+        # page.show_dialog(checksum_check_dialog)
+        sf = await ft.FilePicker().save_file(file_name=fn, src_bytes=src)  # type: ignore
         if sf is None:
             print("Save cancelled.")
             page.show_dialog(cancel_dialog)
@@ -165,6 +218,14 @@ async def main(page: ft.Page):
 
     not_encoded_dialog = ft.AlertDialog(
         title="No File Encoded",
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
+    )
+
+    file_too_big_dialog = ft.AlertDialog(
+        title="Your file is too large",
+        content=ft.Text("Your file is bigger than 100MB, the decoding and saving process will take a\
+relevetively long time to complete."),
         alignment=ft.Alignment.CENTER,
         actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
     )
@@ -218,16 +279,65 @@ matically shown below.")
     # Decoding file header prediction
     fName = ft.Text("Filename: ")
     fSize = ft.Text("Filesize: ")
+    fChecksum = ft.Text("Checksum: ")
+    fChecksum_calc = ft.Text("Calculated Checksum: ")
 
     fileHeaderContainer = ft.Container(content=ft.Column([
         fName, fSize]), alignment=ft.Alignment.CENTER, padding=10, border=ft.Border.all(1, "black"), width=400)
+
+    checksumContainer = ft.Container(
+        content=ft.Column([fChecksum, fChecksum_calc]))
+
+    # -----------Checksum Dialog----------------------
+    checksum_check_dialog = ft.AlertDialog(
+        title="Please check your file's checksum, then process to save if they are the same.",
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton(
+            "I Acknowledged", on_click=lambda _: page.pop_dialog())]
+    )
+
+    disable_crc_check_dialog = ft.AlertDialog(
+        title="Disable Checksum Check",
+        content=ft.Text("You are trying to disable the checksum check. After disabling this feature,\
+the program will unable to tell the file is modified, corrupted."),
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton("    ", on_click=lambda _: page.pop_dialog(
+        ))]
+    )
+
+    checksum_mismatch_not_ignored_dialog = ft.AlertDialog(
+        title="Checksum Mismatch",
+        content=ft.Text("The checksum of the decoded file does not match the original file's checksum.\n\
+The file may be corrupted or the file may have been modified."),
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
+    )
+
+    checksum_mismatch_dialog = ft.AlertDialog(
+        title="⚠Checksum Mismatch⚠",
+        content=ft.Text(
+            "Decode success. You have turned off the checksum check and this file's checksum doesn't match its original value.\n \
+The file may be corrupted or the file may have been modified.\nYOU HAVE BEEN WARNED", color=ft.Colors.YELLOW),
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog(
+        )), ft.TextButton("Cancel", on_click=lambda _: exit())]
+    )
 
     # ------------------------------------------------
 
     pcBtn = ft.Button("Back to Encoding Page", on_click=lambda _: asyncio.create_task(
         page.push_route("/encode")))
+
+    ignore_crc_text = ft.Text("Ignore Checksum Mismatch")
+
+    ignore_mismatch_switch = ft.Switch(
+        label="Ignore Mismatch", value=False, on_change=lambda _: process_checksum_mismatch_switch_change())
+
+    secure_settings = ft.Container(content=ft.Column([
+        ignore_crc_text, ignore_mismatch_switch
+    ]), alignment=ft.Alignment.CENTER, padding=10, border=ft.Border.all(1, "black"), width=400)
     dec_page_ctrls = [header, hint_text, dec_text,
-                      fileHeaderContainer, fileSelectBtn, pcBtn, saveFileBtn]
+                      fileHeaderContainer, fileSelectBtn, checksumContainer, saveFileBtn, secure_settings, pcBtn]
 
     # UI for main page
 
