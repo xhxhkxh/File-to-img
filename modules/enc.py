@@ -7,6 +7,7 @@ import io
 from modules.custom import CUSTOM_FILENAME_BEGIN, CUSTOM_FILENAME_END, CUSTOM_FILESIZE_BEGIN, CUSTOM_FILESIZE_END, SUB_LOG_PREFIX, CUSTOM_CHECKSUM_BEGIN, CUSTOM_CHECKSUM_END
 from modules.custom import getPrefix, MB_SIZE
 from modules.crc_check import direct_crc16_ccitt
+from modules.classes import header
 from os import path
 from math import sqrt, ceil
 from PIL import Image
@@ -190,7 +191,88 @@ def encode(filePath: str) -> tuple[Image.Image, bytes]:
     return (img, img_bytes)
 
 
-def headerInfo(img: Image.Image) -> tuple[str, int, str]:
+def headerInfo(img: Image.Image) -> tuple[str, int, str, list]:
+    '''
+    headerInfo 的 Docstring
+
+    :param img: 输入的图像
+    :type img: Image.Image
+    :return: 文件名，文件大小，文件校验和
+    :rtype: tuple[str, int, str]
+    '''
+
+    # 初始化数据存储和图像尺寸
+    data = []
+    w, h = img.size
+
+    # 计算图像总大小并确定是否需要进度报告
+    size = w*h*3 / MB_SIZE
+    report = True if size > 100 else False
+    report_interval = (w*h) // 100
+    print(f"{getPrefix(2)}[DEC] Running with report: {report}")
+    wc = 0
+
+    # 逐像素读取图像数据
+    for i in range(w):
+        for j in range(h):
+            data.append(img.getpixel((i, j)))
+            if report:
+                wc += 1
+            if report and wc % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Reader] Reading {wc} bytes, progress:{wc / (w*h)*100:.2f}")
+
+    # 展平嵌套的像素数据为一维列表
+    unzip_data = []
+    writeCount = 0
+    for i in data:
+        for j in i:
+            unzip_data.append(j)
+            if report:
+                writeCount += 1
+            if report and writeCount % report_interval == 0:
+                print(
+                    f"{getPrefix(2)}[DEC-Flattening] Flattening {writeCount} bytes, progress:{writeCount / (w*h)*100:.2f}")
+
+    # 解析文件头信息
+    print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
+    head = bytes(unzip_data[:512])
+    head_str = head.decode("utf-8")
+
+    # 提取文件名和文件大小信息
+    try:
+        fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
+            1].split(CUSTOM_FILENAME_END+",")[0]
+    except Exception as e:
+        print(
+            f"{getPrefix(2)} [DEC:ERR] Failed to get filename, setting it to \"Not provided\"")
+        fn = "Not provided"
+    try:
+        size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
+            1].split(CUSTOM_FILESIZE_END)[0]
+    except Exception as e:
+        print(
+            f"{getPrefix(2)} [DEC:ERR] Failed to get filesize, setting it to \"Not provided\"")
+        # If we don't have size, then we can't decode the file
+        raise Exception("No filesize provided")
+    print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
+
+    # 获取校验和信息
+    print(f"{getPrefix(1)}[DEC] Getting checksum.")
+    try:
+        checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
+            1].split(CUSTOM_CHECKSUM_END)[0]
+    except Exception as e:
+        print(
+            f"{getPrefix(2)} [DEC:ERR] Failed to get checksum, setting it to \"00000000\"")
+        checksum = "00000000"
+        return (fn, int(size), hex(int(checksum)), unzip_data)
+
+    print(f"{getPrefix(1)}[DEC] Getted checksum:{checksum}")
+    return (fn, int(size), hex(int(checksum)), unzip_data)
+
+
+def headerInfo_legacy(img: Image.Image) -> tuple[str, int, str]:
     '''
     headerInfo 的 Docstring
 
@@ -224,7 +306,7 @@ def headerInfo(img: Image.Image) -> tuple[str, int, str]:
         1].split(CUSTOM_CHECKSUM_END)[0]
     print(
         f"{getPrefix(1)} [FileHeader] Done with:{fn}, {size} bytes, checkusm:{checksum}")
-    return (fn, int(size), hex(int(checksum)))
+    return (fn, int(size), hex(int(checksum)))  # type: ignore
 
 
 def getChecksum(img: Image.Image) -> str:
@@ -298,7 +380,7 @@ def getChecksum(img: Image.Image) -> str:
     return hex(bin_crc)
 
 
-def decode(img: Image.Image, ignore_mismatch=False) -> tuple[bytes, str]:
+def decode(img: Image.Image, ignore_mismatch=False, preCalcHeader=header, skip_crc=False) -> tuple[bytes, str]:
     '''
     从图像中解码提取原始文件数据
 
@@ -322,57 +404,67 @@ def decode(img: Image.Image, ignore_mismatch=False) -> tuple[bytes, str]:
         - 校验和验证失败
     '''
     print("[DEC] Decoding file...")
+    if preCalcHeader is None:
+        # 初始化数据存储和图像尺寸
+        data = []
+        w, h = img.size
+        # 计算图像总大小并确定是否需要进度报告
+        size = w*h*3 / MB_SIZE
+        report = True if size > 100 else False
+        report_interval = (w*h) // 100
+        print(f"{getPrefix(2)}[DEC] Running with report: {report}")
+        wc = 0
+        '''
+        # 逐像素读取图像数据
+        for i in range(w):
+            for j in range(h):
+                data.append(img.getpixel((i, j)))
+                if report:
+                    wc += 1
+                if report and wc % report_interval == 0:
+                    print(
+                        f"{getPrefix(2)}[DEC-Reader] Reading {wc} bytes, progress:{wc / (w*h)*100:.2f}")
 
-    # 初始化数据存储和图像尺寸
-    data = []
-    w, h = img.size
+        # 展平嵌套的像素数据为一维列表
+        unzip_data = []
+        writeCount = 0
+        for i in data:
+            for j in i:
+                unzip_data.append(j)
+                if report:
+                    writeCount += 1
+                if report and writeCount % report_interval == 0:
+                    print(
+                        f"{getPrefix(2)}[DEC-Flattening] Flattening {writeCount} bytes, progress:{writeCount / (w*h)*100:.2f}")
+'''
+        pixels = list(img.getdata())  # 获取所有像素元组
+        unzip_data = [channel for pixel in pixels for channel in pixel]
 
-    # 计算图像总大小并确定是否需要进度报告
-    size = w*h*3 / MB_SIZE
-    report = True if size > 100 else False
-    report_interval = (w*h) // 100
-    print(f"{getPrefix(2)}[DEC] Running with report: {report}")
-    wc = 0
+        if report:
+            total = len(unzip_data)
+            print(f"{getPrefix(2)}[DEC] Processed {total} bytes")
+        # 解析文件头信息
+        print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
+        head = bytes(unzip_data[:512])
+        head_str = head.decode("utf-8")
 
-    # 逐像素读取图像数据
-    for i in range(w):
-        for j in range(h):
-            data.append(img.getpixel((i, j)))
-            if report:
-                wc += 1
-            if report and wc % report_interval == 0:
-                print(
-                    f"{getPrefix(2)}[DEC-Reader] Reading {wc} bytes, progress:{wc / (w*h)*100:.2f}")
+        # 提取文件名和文件大小信息
+        fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
+            1].split(CUSTOM_FILENAME_END+",")[0]
+        size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
+            1].split(CUSTOM_FILESIZE_END)[0]
+        print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
 
-    # 展平嵌套的像素数据为一维列表
-    unzip_data = []
-    writeCount = 0
-    for i in data:
-        for j in i:
-            unzip_data.append(j)
-            if report:
-                writeCount += 1
-            if report and writeCount % report_interval == 0:
-                print(
-                    f"{getPrefix(2)}[DEC-Flattening] Flattening {writeCount} bytes, progress:{writeCount / (w*h)*100:.2f}")
+        # 获取校验和信息
+        print(f"{getPrefix(1)}[DEC] Getting checksum.")
+        checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
+            1].split(CUSTOM_CHECKSUM_END)[0]
+        print(f"{getPrefix(1)}[DEC] Getted checksum:{checksum}")
 
-    # 解析文件头信息
-    print(f"{SUB_LOG_PREFIX}[DEC] Analyzing file header...")
-    head = bytes(unzip_data[:512])
-    head_str = head.decode("utf-8")
-
-    # 提取文件名和文件大小信息
-    fn = head_str.split(CUSTOM_FILENAME_BEGIN)[
-        1].split(CUSTOM_FILENAME_END+",")[0]
-    size = head_str.split(CUSTOM_FILESIZE_BEGIN)[
-        1].split(CUSTOM_FILESIZE_END)[0]
-    print(f"{SUB_LOG_PREFIX}Filename: {fn}, Size: {size} b ({b2mb(int(size))} mb)")
-
-    # 获取校验和信息
-    print(f"{getPrefix(1)}[DEC] Getting checksum.")
-    checksum = head_str.split(CUSTOM_CHECKSUM_BEGIN)[
-        1].split(CUSTOM_CHECKSUM_END)[0]
-    print(f"{getPrefix(1)}[DEC] Getted checksum:{checksum}")
+    else:
+        fn, size, checksum, unzip_data = preCalcHeader.toList()  # type: ignore
+        checksum = str(int(checksum, 16))
+        # unzip_data = preCalcHeader.getRaw()  # type: ignore
 
     # 提取实际文件数据
     print(f"{SUB_LOG_PREFIX}[DEC] Extracting file data...")
@@ -384,24 +476,27 @@ def decode(img: Image.Image, ignore_mismatch=False) -> tuple[bytes, str]:
     if len(ext_data) != int(size):
         print(f"{SUB_LOG_PREFIX}Error occured when handleing file data, exiting...")
         raise Exception("File Size Mismatch at Decoding process")
-
-    # 校验和验证
-    print(f"{getPrefix(1)}[DEC] Comparing Checksum...")
-    bin_crc = direct_crc16_ccitt(
-        bytes(ext_data), True if len(ext_data) > MB_SIZE * 100 else False)
-    print(
-        f"\n{getPrefix(1)}[DEC-Checksum] Checksum returned with {hex(bin_crc)}, origin {hex(int(checksum))}")
-
-    # 验证校验和是否匹配
-    if hex(bin_crc) != hex(int(checksum)) and not ignore_mismatch:
+    if not skip_crc:
+        # 校验和验证
+        print(f"{getPrefix(1)}[DEC] Comparing Checksum...")
+        bin_crc = direct_crc16_ccitt(
+            bytes(ext_data), True if len(ext_data) > MB_SIZE * 100 else False)
         print(
-            f"{SUB_LOG_PREFIX}[DEC:ERROR] Error occured when handleing checksum, exiting...")
-        raise Exception(
-            f"Checksum Mismatch at Decoding process:{hex(bin_crc)}")
-    if hex(bin_crc) != hex(int(checksum)) and ignore_mismatch:
-        print(
-            f"{SUB_LOG_PREFIX}[DEC:WARNING] Checksum mismatch, but user ignored.")
-        return (bytes(ext_data), hex(bin_crc))
+            f"\n{getPrefix(1)}[DEC-Checksum] Checksum returned with {hex(bin_crc)}, origin {hex(int(checksum))}")
+
+        # 验证校验和是否匹配
+        if hex(bin_crc) != hex(int(checksum)) and not ignore_mismatch:
+            print(
+                f"{SUB_LOG_PREFIX}[DEC:ERROR] Error occured when handleing checksum, exiting...")
+            raise Exception(
+                f"Checksum Mismatch at Decoding process:{hex(bin_crc)}")
+        if hex(bin_crc) != hex(int(checksum)) and ignore_mismatch:
+            print(
+                f"{SUB_LOG_PREFIX}[DEC:WARNING] Checksum mismatch, but user ignored.")
+            return (bytes(ext_data), hex(bin_crc))
+    else:
+        bin_crc = 00000000
+        print(f"{getPrefix(3)} [DEC:WARN] User skipped checksum check.")
 
     print(f"{SUB_LOG_PREFIX}[DEC] Decoding completed.")
     return (bytes(ext_data), hex(bin_crc))

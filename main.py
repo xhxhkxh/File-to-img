@@ -1,17 +1,20 @@
 import base64
 from io import BytesIO
+import os
 import flet as ft
 from PIL import Image, ImageShow
 from modules.enc import encode, decode, headerInfo
 from modules.tool import sep, b2mb, pil_to_b64
 from datetime import datetime
+from modules.classes import *
 import asyncio
 
 globalfiles = []
-
+skip_crc = False
 enc_b64 = ''
 enc_bytes = b''
 ignore_crc_mismatch = False
+fHeader = header(fname='', fsize=0, checksum='')
 
 
 async def mainEncode(page: ft.Page) -> None:
@@ -75,7 +78,7 @@ async def main(page: ft.Page):
     # Func
 
     async def handle_file_decode() -> None:
-        global globalfiles
+        global globalfiles, fHeader
         files = await ft.FilePicker().pick_files(allow_multiple=False, allowed_extensions=["png"])
         fileValues = [i.path for i in files] if files else "Cancelled"
         if fileValues == "Cancelled":
@@ -84,11 +87,20 @@ async def main(page: ft.Page):
         print(fileValues)
         img = Image.open(fileValues[0])  # type: ignore
         try:
-            info = headerInfo(img)
+            try:
+                fHeader.fromImg(img)
+            except Exception as e:
+                if "No filesize provided" in str(e):
+                    globalfiles = None
+                    return None
+                print(f"Error occured during headerInfo_legacy: {e}")
+                fHeader.fromImg(img)
+            info = fHeader.toList()
+            # info = headerInfo(img)
         except Exception as e:
             print(f"Error occured during headerInfo: {e}")
             errText = ft.Text(
-                "Error occured during headerInfo: " + str(e), color=ft.Colors.RED)
+                "Error occured during: " + str(e), color=ft.Colors.RED)
             current_view = page.views[-1]
             current_view.controls.append(errText)
             page.update()
@@ -138,14 +150,22 @@ async def main(page: ft.Page):
             page.show_dialog(cancel_dialog)
             return
 
+    def process_checksum_skip_switch_change():
+        global skip_crc
+        skip_crc = not skip_crc
+        if skip_crc:
+            page.show_dialog(try_skip_checksum_dialog)
+            print("[MAIN] skip_crc changed to:", skip_crc)
+
     def process_checksum_mismatch_switch_change():
         global ignore_crc_mismatch
         ignore_crc_mismatch = not ignore_crc_mismatch
         if ignore_crc_mismatch:
             page.show_dialog(disable_crc_check_dialog)
+            print("[MAIN] ignore_crc_mismatch changed to:", ignore_crc_mismatch)
 
     async def save_dec_file() -> None:
-        global globalfiles, ignore_crc_mismatch
+        global globalfiles, ignore_crc_mismatch, skip_crc
         if globalfiles == []:
             print("No file to save.")
             page.show_dialog(not_encoded_dialog)
@@ -153,9 +173,12 @@ async def main(page: ft.Page):
         fn = fName.value.split("Filename: ")[1]
         src = 'not_decoded'
         clc = 'not_decoded'
+        clcSum = 'Not caculated'
         try:
             src, clcSum = decode(Image.open(globalfiles),  # type: ignore
-                                 ignore_crc_mismatch)  # type: ignore
+                                 ignore_crc_mismatch, preCalcHeader=fHeader, skip_crc=skip_crc)  # type: ignore
+            if skip_crc:
+                clcSum = 'Skipped'
         except Exception as e:
             if "Checksum Mismatch at Decoding process" in str(e):
                 if ignore_crc_mismatch == True:
@@ -226,6 +249,14 @@ async def main(page: ft.Page):
         title="Your file is too large",
         content=ft.Text("Your file is bigger than 100MB, the decoding and saving process will take a\
 relevetively long time to complete."),
+        alignment=ft.Alignment.CENTER,
+        actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
+    )
+
+    no_size_provided_dialog = ft.AlertDialog(
+        title="No File Size Provided",
+        content=ft.Text(
+            "If the file size is not provided, the decoding process will not proceed."),
         alignment=ft.Alignment.CENTER,
         actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog())]
     )
@@ -301,7 +332,7 @@ matically shown below.")
         content=ft.Text("You are trying to disable the checksum check. After disabling this feature,\
 the program will unable to tell the file is modified, corrupted."),
         alignment=ft.Alignment.CENTER,
-        actions=[ft.TextButton("    ", on_click=lambda _: page.pop_dialog(
+        actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog(
         ))]
     )
 
@@ -320,7 +351,16 @@ The file may be corrupted or the file may have been modified."),
 The file may be corrupted or the file may have been modified.\nYOU HAVE BEEN WARNED", color=ft.Colors.YELLOW),
         alignment=ft.Alignment.CENTER,
         actions=[ft.TextButton("OK", on_click=lambda _: page.pop_dialog(
-        )), ft.TextButton("Cancel", on_click=lambda _: exit())]
+        )), ft.TextButton("Cancel", on_click=lambda _: os._exit(0))]
+    )
+
+    try_skip_checksum_dialog = ft.AlertDialog(
+        title="Sure to proceed?",
+        content=ft.Text("You are trying to skip calculating checksum. \nAfter disabling this feature,\
+the program will unable to tell the file is modified, corrupted. \n\
+However, skipping this process can accelarate the process."),
+        actions=[ft.TextButton(
+            "I Acknowledged", on_click=lambda _: page.pop_dialog())]
     )
 
     # ------------------------------------------------
@@ -331,10 +371,19 @@ The file may be corrupted or the file may have been modified.\nYOU HAVE BEEN WAR
     ignore_crc_text = ft.Text("Ignore Checksum Mismatch")
 
     ignore_mismatch_switch = ft.Switch(
-        label="Ignore Mismatch", value=False, on_change=lambda _: process_checksum_mismatch_switch_change())
+        label="Ignore Mismatch", value=False, on_change=lambda _: process_checksum_mismatch_switch_change(),
+        active_color=ft.Colors.RED_500, inactive_track_color=ft.Colors.GREEN_700,
+        inactive_thumb_color=ft.Colors.GREEN_300)
+
+    skip_checksum_calc_text = ft.Text("Skip Checksum Calculation")
+
+    skip_checksum_calc_switch = ft.Switch(
+        label="Skip Checksum Calculation", value=False, active_color=ft.Colors.RED_500,
+        inactive_track_color=ft.Colors.GREEN_700, inactive_thumb_color=ft.Colors.GREEN_300,
+        on_change=lambda _: process_checksum_skip_switch_change())
 
     secure_settings = ft.Container(content=ft.Column([
-        ignore_crc_text, ignore_mismatch_switch
+        ignore_crc_text, ignore_mismatch_switch, skip_checksum_calc_text, skip_checksum_calc_switch
     ]), alignment=ft.Alignment.CENTER, padding=10, border=ft.Border.all(1, "black"), width=400)
     dec_page_ctrls = [header, hint_text, dec_text,
                       fileHeaderContainer, fileSelectBtn, checksumContainer, saveFileBtn, secure_settings, pcBtn]
