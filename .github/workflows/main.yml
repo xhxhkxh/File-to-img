@@ -48,11 +48,19 @@ jobs:
         overwrite: true
 
     # 5.  Release
+
+    - name: Get latest tag
+      id: get_tag
+      run: |
+        LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+        echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+        echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
     - name: Create release
       uses: softprops/action-gh-release@v2
       with:
         files: build/apk/app-release.apk        
         generate_release_notes: true
-        tag_name: ${{ github.ref_name }}
+        tag_name: ${{ steps.get_tag.outputs.tag }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
