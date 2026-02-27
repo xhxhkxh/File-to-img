@@ -373,14 +373,22 @@ However, skipping this process can accelarate the process."),
     ignore_mismatch_switch = ft.Switch(
         label="Ignore Mismatch", value=False, on_change=lambda _: process_checksum_mismatch_switch_change(),
         active_color=ft.Colors.RED_500, inactive_track_color=ft.Colors.GREEN_700,
-        inactive_thumb_color=ft.Colors.GREEN_300)
+        inactive_thumb_color=ft.Colors.GREEN_300, thumb_icon={
+            ft.ControlState.SELECTED: ft.Icons.BOLT,
+
+            ft.ControlState.DEFAULT: ft.Icons.CHECK
+        })  # type: ignore
 
     skip_checksum_calc_text = ft.Text("Skip Checksum Calculation")
 
     skip_checksum_calc_switch = ft.Switch(
         label="Skip Checksum Calculation", value=False, active_color=ft.Colors.RED_500,
         inactive_track_color=ft.Colors.GREEN_700, inactive_thumb_color=ft.Colors.GREEN_300,
-        on_change=lambda _: process_checksum_skip_switch_change())
+        on_change=lambda _: process_checksum_skip_switch_change(), thumb_icon={
+            ft.ControlState.SELECTED: ft.Icons.BOLT,
+
+            ft.ControlState.DEFAULT: ft.Icons.CHECK
+        })  # type: ignore
 
     secure_settings = ft.Container(content=ft.Column([
         ignore_crc_text, ignore_mismatch_switch, skip_checksum_calc_text, skip_checksum_calc_switch
